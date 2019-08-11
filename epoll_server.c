@@ -15,6 +15,11 @@
 // 可以在epoll时间机制中注册多少个fd
 #define EPOLL_SIZE 5000
 
+// 客户端连接上了之后服务端默认发一条消息给客户端
+#define SERVER_WELCOME "welcome message"
+
+#define BUF_SIZE 0xFFFF
+
 /**
   * @param epollfd: epoll handle
   * @param fd: socket descriptor
@@ -28,7 +33,7 @@ void addfd(int epollfd, int fd, bool enable_et)
   if (enable_et)
     ev.events = EPOLLIN | EPOLLET;
   epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &ev);
-  setnonblocking(fd);
+  // setnonblocking(fd);
   printf("fd added to epoll!\n\n");
 }
 
@@ -74,11 +79,11 @@ int main(int argc, char *argv[])
 
   printf("epoll created, epollfd = %d\n", epfd);
 
-  // 定义需要注册到epoll事件
-  static struct epoll_event events[EPOLL_SIZE];
-
   // 注册epoll事件，往内核事件表里添加事件
   addfd(epfd, listenfd, true);
+
+  // 定义需要注册到epoll事件
+  static struct epoll_event events[EPOLL_SIZE];
 
   while (1)
   {
@@ -86,9 +91,51 @@ int main(int argc, char *argv[])
     int epoll_events_count = epoll_wait(epfd, events, EPOLL_SIZE, -1);
     if (epoll_events_count < 0)
     {
-      perror("epoll就绪事件小于0");
+      printf("epoll就绪事件小于0");
       break;
     }
 
+    // 处理这epoll_events_count个就绪事件
+    for (int i = 0; i < epoll_events_count; ++i)
+    {
+      int sockfd = events[i].data.fd;
+      //新用户连接
+      if (sockfd == listenfd)
+      {
+        struct sockaddr_in client_address;
+        socklen_t client_addrLength = sizeof(struct sockaddr_in);
+        int clientfd = accept(listenfd, (struct sockaddr *)&client_address, &client_addrLength);
+        printf("client connection from: %s : % d(IP : port), clientfd = %d \n",
+               inet_ntoa(client_address.sin_addr),
+               ntohs(client_address.sin_port),
+               clientfd);
+
+        addfd(epfd, clientfd, true); ////把这个新的客户端添加到内核事件列表
+
+        // 服务端用list保存用户连接
+        // clients_list.push_back(clientfd);
+        // printf("Add new clientfd = %d to epoll\n", clientfd);
+        // printf("Now there are %d clients int the chat room\n", (int)clients_list.size());
+
+        // 服务端发送欢迎信息
+        printf("welcome message\n");
+        char message[BUF_SIZE];
+        bzero(message, BUF_SIZE);
+        sprintf(message, SERVER_WELCOME, clientfd);
+        int ret = send(clientfd, message, BUF_SIZE, 0);
+        if (ret < 0)
+        {
+          printf("send welcome error\n");
+          exit(-1);
+        }
+      }
+      else
+      {
+      }
+    }
+
+    close(listenfd); //关闭socket
+    close(epfd);     //关闭内核   不在监控这些注册事件是否发生
+
+    return 0;
   }
-}
