@@ -1,41 +1,4 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/epoll.h>
-
-// 服务端口
-#define SERVER_PORT 9601
-
-// 服务IP
-#define SERVER_IP "127.0.0.1"
-
-// 已完成三次握手的队列长度
-#define BACKLOG 128
-
-// 可以在epoll时间机制中注册多少个fd
-#define EPOLL_SIZE 5000
-
-// 客户端连接上了之后服务端默认发一条消息给客户端
-#define SERVER_WELCOME "welcome message"
-
-#define BUF_SIZE 0xFFFF
-
-/**
-  * @param epollfd: epoll handle
-  * @param fd: socket descriptor
-  * @param enable_et : enable_et = true, epoll use ET; otherwise LT
-**/
-void addfd(int epollfd, int fd, bool enable_et)
-{
-  struct epoll_event ev;
-  ev.data.fd = fd;
-  ev.events = EPOLLIN;
-  if (enable_et)
-    ev.events = EPOLLIN | EPOLLET;
-  epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &ev);
-  // setnonblocking(fd);
-  printf("fd added to epoll!\n\n");
-}
+#include "mepoll.h"
 
 int main(int argc, char *argv[])
 {
@@ -131,6 +94,7 @@ int main(int argc, char *argv[])
       }
       else
       {
+        handler(events[i], listenfd, sockfd);
       }
     }
 
