@@ -16,6 +16,14 @@ int main(int argc, char *argv[])
     exit(-1);
   }
 
+  // 防止bind失败
+  int reuse = 1;
+  if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+  {
+    perror("setsockopet error\n");
+    return -1;
+  }
+
   // 绑定地址
   if (bind(listenfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
   {
@@ -43,7 +51,7 @@ int main(int argc, char *argv[])
   printf("epoll created, epollfd = %d\n", epfd);
 
   // 注册epoll事件，往内核事件表里添加事件
-  addfd(epfd, listenfd, true);
+  addfd(epfd, listenfd, 1);
 
   // 定义需要注册到epoll事件
   static struct epoll_event events[EPOLL_SIZE];
@@ -73,7 +81,7 @@ int main(int argc, char *argv[])
                ntohs(client_address.sin_port),
                clientfd);
 
-        addfd(epfd, clientfd, true); ////把这个新的客户端添加到内核事件列表
+        addfd(epfd, clientfd, 1); ////把这个新的客户端添加到内核事件列表
 
         // 服务端用list保存用户连接
         // clients_list.push_back(clientfd);
@@ -97,9 +105,10 @@ int main(int argc, char *argv[])
         handler(events[i], listenfd, sockfd);
       }
     }
-
-    close(listenfd); //关闭socket
-    close(epfd);     //关闭内核   不在监控这些注册事件是否发生
-
-    return 0;
   }
+
+  close(listenfd); //关闭socket
+  close(epfd);     //关闭内核   不在监控这些注册事件是否发生
+
+  return 0;
+}

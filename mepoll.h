@@ -2,7 +2,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
+#include <fcntl.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <string.h>
 
 // 服务端口
 #define SERVER_PORT 9601
@@ -17,7 +23,7 @@
 #define EPOLL_SIZE 5000
 
 // 客户端连接上了之后服务端默认发一条消息给客户端
-#define SERVER_WELCOME "welcome message"
+#define SERVER_WELCOME "Hi,I am server, Welcome\n"
 
 #define BUF_SIZE 0xFFFF
 
@@ -34,7 +40,7 @@ void setnonblocking(int sockfd)
   * @param fd: socket descriptor
   * @param enable_et : enable_et = true, epoll use ET; otherwise LT
   **/
-void addfd(int epollfd, int fd, bool enable_et)
+void addfd(int epollfd, int fd, int enable_et)
 {
   struct epoll_event ev;
   ev.data.fd = fd;
@@ -51,34 +57,28 @@ void addfd(int epollfd, int fd, bool enable_et)
  **/
 void handler(struct epoll_event event, int epollfd, int fd)
 {
+
+  if (event.events & (EPOLLERR | EPOLLHUP))
+  {
+    printf("触发错误，对端已经关闭，关闭本端fd\n");
+    close(fd);
+    return;
+  }
+
   if (event.events & EPOLLIN)
   {
     printf("触发EPOLLIN\n");
-    if (fd < 0)
-    {
-      return;
-    }
-    int size_t n;
-    if ()
-    {
-    }
-    event.events = EPOLL | EPOLLET;
-    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
-  }
-  else if (event.events & EPOLLOUT)
-  {
-    printf("触发EPOLLOUT\n");
     /* 接入的socket有数据可读 */
     while (1)
     {
       ssize_t count;
       char buf[512];
-      count = read(fd, buf, sizeof(buf));
+      count = read(fd, buf, sizeof buf);
       if (count == -1)
       {
         if (errno != EAGAIN)
         {
-          printf("读取错误，并且errno不等于EAGAIN：没提示需要再次读取\n");
+          printf("read\n");
           close(fd);
         }
         break;
@@ -91,24 +91,31 @@ void handler(struct epoll_event event, int epollfd, int fd)
         break;
       }
       /* 输出到stdout */
-      s = write(1, buf, count);
+      int s = write(1, buf, count);
       if (s == -1)
       {
-        printf("写入错误\n");
+        printf("write\n");
         abort();
       }
-      event.events = EPOLLIN | EPOLLET;
-      epoll_ctl(epollfd, EPOLL_CTL_MOD, efd, &event);
+
+      // char message[BUF_SIZE] = "process ";
+      // strcat(message, buf);
+      // int ret = send(fd, message, BUF_SIZE, 0);
+
+      event.events = EPOLLET | EPOLLOUT;
+      epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
     }
   }
-  else if (event.events & (EPOLLERR | EPOLLHUP))
+
+  if (event.events & EPOLLOUT)
   {
-    printf("触发错误，对端已经关闭，关闭本端fd\n");
-    close(fd);
-    continue;
+    printf("触发EPOLLOUT\n");
+    write(fd, "it's echo man\n", 14);
+    event.events = EPOLLET | EPOLLIN;
+    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
   }
-  else
-  {
-    printf("触发未知错误：%d\n", event.events);
-  }
+  // else
+  // {
+  //   printf("触发未知错误：%d\n", event.events);
+  // }
 }
