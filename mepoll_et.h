@@ -53,7 +53,7 @@ void addfd(int epollfd, int fd, int enable_et)
 }
 
 /**
- *  
+ *
  **/
 void handler(struct epoll_event event, int epollfd, int fd)
 {
